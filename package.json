@@ -1,0 +1,62 @@
+{
+  "name": "nova-ton-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Nova TON Backend - Bun.js + Hono + Prisma",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch nova-server.ts",
+    "build": "tsc",
+    "start": "tsx nova-server.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:reset": "bun run scripts/resetDatabase.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "migrate:nova": "bun run scripts/migrate-nova.ts",
+    "migrate:data": "bun run scripts/migrate-data.ts",
+    "verify:migration": "bun run scripts/verify-migration.ts",
+    "test": "bun test",
+    "test:services": "bun test tests/services",
+    "test:api": "bun test tests/api",
+    "test:perf": "bun test tests/performance",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "eslint src --ext ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.6",
+    "@opentelemetry/api": "^1.9.0",
+    "@orbs-network/ton-access": "^2.3.3",
+    "@prisma/client": "^5.22.0",
+    "@ton/core": "^0.62.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^16.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.4.1",
+    "cors": "^2.8.5",
+    "decimal.js": "^10.6.0",
+    "dotenv": "^16.3.1",
+    "hono": "^4.0.0",
+    "ioredis": "^5.8.2",
+    "jose": "^6.1.2",
+    "prom-client": "^15.1.3",
+    "tsx": "^4.21.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/bun": "^1.3.4",
+    "@types/cors": "^2.8.17",
+    "@types/decimal.js": "^0.0.32",
+    "@types/node": "^20.19.27",
+    "eslint": "^8.56.0",
+    "prisma": "^5.22.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

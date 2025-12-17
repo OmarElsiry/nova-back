@@ -1,0 +1,262 @@
+/**
+ * Dependency Injection Container
+ * Central registry for all application services
+ * Following Dependency Inversion Principle (DIP)
+ */
+
+import { PrismaClient } from '@prisma/client';
+import type { Hono } from 'hono';
+
+// Domain interfaces
+import type { IUserRepository } from '../domain/user/IUserRepository';
+import type { IWithdrawalRepository } from '../domain/withdrawal/IWithdrawalRepository';
+import type { IChannelRepository } from '../domain/channel/IChannelRepository';
+import type { IPurchaseRepository } from '../domain/purchase/IPurchaseRepository';
+import type { IFraudDetectionService } from '../domain/services/IFraudDetectionService';
+import type { IBlockchainService } from '../domain/services/IBlockchainService';
+import type { INotificationService } from '../domain/services/INotificationService';
+import type { IEventBus } from '../domain/events/IEventBus';
+
+// Infrastructure implementations
+import { PrismaUserRepository } from './repositories/PrismaUserRepository';
+import { PrismaWithdrawalRepository } from './repositories/PrismaWithdrawalRepository';
+import { PrismaChannelRepository } from './repositories/PrismaChannelRepository';
+import { PrismaPurchaseRepository } from './repositories/PrismaPurchaseRepository';
+import { TonBlockchainService } from './blockchain/TonBlockchainService';
+import { TelegramNotificationService } from './notifications/TelegramNotificationService';
+import { EventBus } from './events/EventBus';
+import { FraudDetectionService } from './security/FraudDetectionService';
+
+// Application services
+import { WithdrawalApplicationService } from '../application/withdrawal/WithdrawalApplicationService';
+import { UserApplicationService } from '../application/user/UserApplicationService';
+import { ChannelApplicationService } from '../application/channel/ChannelApplicationService';
+import { PurchaseApplicationService } from '../application/purchase/PurchaseApplicationService';
+
+// API Controllers
+import { WithdrawalController } from '../api/controllers/refactored/WithdrawalController';
+import { UserController } from '../api/controllers/refactored/UserController';
+import { ChannelController } from '../api/controllers/refactored/ChannelController';
+import { PurchaseController } from '../api/controllers/refactored/PurchaseController';
+
+// Middleware
+import { AuthMiddleware } from '../api/middleware/refactored/AuthMiddleware';
+import { ValidationMiddleware } from '../api/middleware/refactored/ValidationMiddleware';
+import { RateLimitMiddleware } from '../api/middleware/refactored/RateLimitMiddleware';
+
+// Utils
+import { Logger } from './logging/Logger';
+import { RedisCache } from './cache/RedisCache';
+
+export interface ServiceRegistry {
+  // Infrastructure
+  prisma: PrismaClient;
+  logger: Logger;
+  cache: RedisCache;
+  eventBus: IEventBus;
+  
+  // Domain Repositories
+  userRepository: IUserRepository;
+  withdrawalRepository: IWithdrawalRepository;
+  channelRepository: IChannelRepository;
+  purchaseRepository: IPurchaseRepository;
+  
+  // Domain Services
+  blockchainService: IBlockchainService;
+  fraudDetectionService: IFraudDetectionService;
+  notificationService: INotificationService;
+  
+  // Application Services
+  userApplicationService: UserApplicationService;
+  withdrawalApplicationService: WithdrawalApplicationService;
+  channelApplicationService: ChannelApplicationService;
+  purchaseApplicationService: PurchaseApplicationService;
+  
+  // API Controllers
+  userController: UserController;
+  withdrawalController: WithdrawalController;
+  channelController: ChannelController;
+  purchaseController: PurchaseController;
+  
+  // Middleware
+  authMiddleware: AuthMiddleware;
+  validationMiddleware: ValidationMiddleware;
+  rateLimitMiddleware: RateLimitMiddleware;
+}
+
+export class DIContainer {
+  private services: Partial<ServiceRegistry> = {};
+  private singletons = new Map<keyof ServiceRegistry, any>();
+
+  /**
+   * Register a service factory
+   */
+  register<K extends keyof ServiceRegistry>(
+    name: K,
+    factory: (container: DIContainer) => ServiceRegistry[K],
+    options: { singleton?: boolean } = { singleton: true }
+  ): void {
+    if (options.singleton) {
+      // Lazy singleton pattern
+      Object.defineProperty(this.services, name, {
+        get: () => {
+          if (!this.singletons.has(name)) {
+            this.singletons.set(name, factory(this));
+          }
+          return this.singletons.get(name);
+        },
+        configurable: true,
+        enumerable: true
+      });
+    } else {
+      // Factory pattern - new instance each time
+      Object.defineProperty(this.services, name, {
+        get: () => factory(this),
+        configurable: true,
+        enumerable: true
+      });
+    }
+  }
+
+  /**
+   * Resolve a service
+   */
+  resolve<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] {
+    const service = this.services[name];
+    if (!service) {
+      throw new Error(`Service "${name}" not registered in container`);
+    }
+    return service as ServiceRegistry[K];
+  }
+
+  /**
+   * Bootstrap the container with all services
+   */
+  static bootstrap(): DIContainer {
+    const container = new DIContainer();
+
+    // Infrastructure - Core Services
+    container.register('prisma', () => new PrismaClient());
+    container.register('logger', () => new Logger());
+    container.register('cache', (c) => new RedisCache(c.resolve('logger')));
+    container.register('eventBus', () => new EventBus());
+
+    // Domain Repositories
+    container.register('userRepository', (c) => 
+      new PrismaUserRepository(c.resolve('prisma'), c.resolve('logger'))
+    );
+    container.register('withdrawalRepository', (c) => 
+      new PrismaWithdrawalRepository(c.resolve('prisma'), c.resolve('logger'))
+    );
+    container.register('channelRepository', (c) =>
+      new PrismaChannelRepository(c.resolve('prisma'), c.resolve('logger'))
+    );
+    container.register('purchaseRepository', (c) =>
+      new PrismaPurchaseRepository(c.resolve('prisma'), c.resolve('logger'))
+    );
+
+    // Domain Services
+    container.register('blockchainService', (c) => 
+      new TonBlockchainService(c.resolve('logger'))
+    );
+    container.register('fraudDetectionService', (c) =>
+      new FraudDetectionService(c.resolve('logger'), c.resolve('cache'))
+    );
+    container.register('notificationService', (c) =>
+      new TelegramNotificationService(c.resolve('logger'))
+    );
+
+    // Application Services
+    container.register('userApplicationService', (c) => 
+      new UserApplicationService(
+        c.resolve('userRepository'),
+        c.resolve('eventBus'),
+        c.resolve('logger')
+      )
+    );
+    
+    container.register('withdrawalApplicationService', (c) =>
+      new WithdrawalApplicationService(
+        c.resolve('withdrawalRepository'),
+        c.resolve('userRepository'),
+        c.resolve('blockchainService'),
+        c.resolve('fraudDetectionService'),
+        c.resolve('eventBus'),
+        c.resolve('logger')
+      )
+    );
+
+    container.register('channelApplicationService', (c) =>
+      new ChannelApplicationService(
+        c.resolve('channelRepository'),
+        c.resolve('userRepository'),
+        c.resolve('eventBus'),
+        c.resolve('logger')
+      )
+    );
+
+    container.register('purchaseApplicationService', (c) =>
+      new PurchaseApplicationService(
+        c.resolve('purchaseRepository'),
+        c.resolve('channelRepository'),
+        c.resolve('userRepository'),
+        c.resolve('blockchainService'),
+        c.resolve('notificationService'),
+        c.resolve('eventBus'),
+        c.resolve('logger')
+      )
+    );
+
+    // API Controllers
+    container.register('userController', (c) =>
+      new UserController(c.resolve('userApplicationService'), c.resolve('logger'))
+    );
+    
+    container.register('withdrawalController', (c) =>
+      new WithdrawalController(c.resolve('withdrawalApplicationService'), c.resolve('logger'))
+    );
+
+    container.register('channelController', (c) =>
+      new ChannelController(c.resolve('channelApplicationService'), c.resolve('logger'))
+    );
+
+    container.register('purchaseController', (c) =>
+      new PurchaseController(c.resolve('purchaseApplicationService'), c.resolve('logger'))
+    );
+
+    // Middleware
+    container.register('authMiddleware', (c) =>
+      new AuthMiddleware(c.resolve('logger'))
+    );
+
+    container.register('validationMiddleware', (c) =>
+      new ValidationMiddleware(c.resolve('logger'))
+    );
+
+    container.register('rateLimitMiddleware', (c) =>
+      new RateLimitMiddleware(c.resolve('cache'), c.resolve('logger'))
+    );
+
+    return container;
+  }
+
+  /**
+   * Graceful shutdown
+   */
+  async shutdown(): Promise<void> {
+    // Close database connections
+    const prisma = this.services.prisma;
+    if (prisma) {
+      await prisma.$disconnect();
+    }
+
+    // Close cache connections
+    const cache = this.services.cache;
+    if (cache && 'disconnect' in cache) {
+      await (cache as any).disconnect();
+    }
+
+    // Clear singletons
+    this.singletons.clear();
+  }
+}

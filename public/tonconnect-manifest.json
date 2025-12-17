@@ -1,0 +1,10 @@
+{
+  "url": "https://3d9c1d80-0aed-43b2-a746-a5d5d25bc72e.sandbox.lovable.dev",
+  "name": "Channels Marketplace",
+  "iconUrl": "https://3d9c1d80-0aed-43b2-a746-a5d5d25bc72e.sandbox.lovable.dev/placeholder.svg",
+  "termsOfUseUrl": "https://3d9c1d80-0aed-43b2-a746-a5d5d25bc72e.sandbox.lovable.dev/terms",
+  "privacyPolicyUrl": "https://3d9c1d80-0aed-43b2-a746-a5d5d25bc72e.sandbox.lovable.dev/privacy",
+  "dAppAcceptProtocol": "3",
+  "includeWallets": ["telegram", "tonkeeper", "tonhub"],
+  "bridgeUrl": "https://bridge.tonapi.io/bridge"
+}

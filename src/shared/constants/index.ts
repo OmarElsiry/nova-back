@@ -1,0 +1,84 @@
+/**
+ * Application Constants
+ * 
+ * Centralized constants to avoid magic numbers and strings
+ */
+
+export const PAGINATION = {
+  MIN_PAGE_SIZE: 1,
+  MAX_PAGE_SIZE: 100,
+  DEFAULT_PAGE_SIZE: 10,
+  MIN_PAGE: 1,
+} as const;
+
+export const TIMEOUTS = {
+  REQUEST_TIMEOUT_MS: 30000, // 30 seconds
+  DATABASE_TIMEOUT_MS: 10000, // 10 seconds
+  CACHE_TTL_SECONDS: 300, // 5 minutes
+} as const;
+
+export const SERVICE_KEYS = {
+  LOGGER: 'logger',
+  PRISMA: 'prisma',
+  USER_REPOSITORY: 'userRepository',
+  MARKETPLACE_REPOSITORY: 'marketplaceRepository',
+  GET_USER_USE_CASE: 'getUserUseCase',
+  CREATE_USER_USE_CASE: 'createUserUseCase',
+  LINK_WALLET_USE_CASE: 'linkWalletUseCase',
+  GET_CHANNELS_USE_CASE: 'getChannelsUseCase',
+  GET_CHANNEL_USE_CASE: 'getChannelUseCase',
+  CREATE_CHANNEL_USE_CASE: 'createChannelUseCase',
+} as const;
+
+export const WITHDRAWAL_LIMITS = {
+  MIN_AMOUNT: 1_000_000n, // 0.001 TON
+  MAX_AMOUNT: 1_000_000_000_000n, // 1,000 TON
+  DAILY_LIMIT: 100_000_000_000n, // 100 TON
+} as const;
+
+export const DEPOSIT_LIMITS = {
+  MIN_AMOUNT: 1_000_000n, // 0.001 TON
+  MAX_AMOUNT: 10_000_000_000_000n, // 10,000 TON
+  REQUIRED_CONFIRMATIONS: 10,
+} as const;
+
+export const RATE_LIMITS = {
+  POINTS_PER_MINUTE: 100,
+  DURATION_SECONDS: 60,
+  BLOCK_DURATION_SECONDS: 300, // 5 minutes
+} as const;
+
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  UNPROCESSABLE_ENTITY: 422,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+} as const;
+
+export const ERROR_CODES = {
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
+  BUSINESS_LOGIC_ERROR: 'BUSINESS_LOGIC_ERROR',
+  INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
+  INVALID_TOKEN: 'INVALID_TOKEN',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  INSUFFICIENT_BALANCE: 'INSUFFICIENT_BALANCE',
+  RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+} as const;
+
+export const LOG_LEVELS = {
+  DEBUG: 'debug',
+  INFO: 'info',
+  WARN: 'warn',
+  ERROR: 'error',
+} as const;

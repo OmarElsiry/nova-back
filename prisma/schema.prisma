@@ -1,0 +1,267 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    Int       @id @default(autoincrement())
+  telegramId            String    @unique  // Required - Telegram ID is primary identifier
+  walletAddress         String?   // Optional - only set when wallet is connected
+  walletAddressVariants String    @default("[]") // JSON array of address variants
+  balance               Int       @default(0) // Changed to Int for nanoTON
+  role                  String    @default("user") // user, admin, superadmin
+  canonicalAddressId    Int?      // Reference to main canonical address
+  version               Int       @default(0) // For optimistic locking
+  username              String?   // User's Telegram username
+  firstName             String?
+  lastName              String?
+  languageCode          String?
+  photoUrl              String?   // Telegram profile photo URL
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  referrerId          Int?
+  referrer            User?     @relation("UserReferrals", fields: [referrerId], references: [id])
+  referrals           User[]    @relation("UserReferrals")
+  referralEarnings    Float     @default(0)
+  
+  transactions          Transaction[]
+  channels              Channel[]
+  reviews               Review[]
+  canonicalAddresses    CanonicalAddress[]
+  deposits              Deposit[]
+  withdrawals           Withdrawal[]
+  purchasesAsBuyer      Purchase[]        @relation("PurchaseBuyer")
+  purchasesAsSeller     Purchase[]        @relation("PurchaseSeller")
+  warnings              UserWarning[]
+  
+  @@index([telegramId])
+  @@index([walletAddress])
+  @@index([referrerId])
+}
+
+model Transaction {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  amount        Float
+  type          String    // "deposit" | "withdrawal"
+  status        String    // "pending" | "completed" | "failed"
+  txHash        String?   @unique
+  logicalTime   BigInt?   // For TON blockchain tracking
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Channel {
+  id                  Int       @id @default(autoincrement())
+  userId              Int
+  username            String    @unique
+  title               String?   // Channel title/name
+  description         String?   // Channel description
+  status              String    // "verified" | "listed" | "sold"
+  askingPrice         Float?
+  featuredGiftImageUrl String?
+  giftsJson           String    // JSON array of gifts
+  giftsCount          Int       @default(0)
+  hasUpgradedGifts    Boolean   @default(false)
+  hasRegularGifts     Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews             Review[]
+  purchases           Purchase[]
+  
+  @@index([userId])
+  @@index([status])
+  @@index([askingPrice])
+  @@index([hasUpgradedGifts])
+  @@index([hasRegularGifts])
+}
+
+model Review {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  channelId Int
+  rating    Int       // 1-5
+  comment   String?
+  createdAt DateTime  @default(now())
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([channelId])
+}
+
+model CanonicalAddress {
+  id                String            @id @default(uuid())
+  userId            Int
+  address           String            @unique
+  network           String            @default("mainnet")
+  createdAt         DateTime          @default(now())
+  
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  variants          AddressVariant[]
+  deposits          Deposit[]
+  
+  @@index([userId])
+  @@index([address])
+  @@map("canonical_addresses")
+}
+
+model AddressVariant {
+  id                String            @id @default(uuid())
+  canonicalId       String
+  variant           String            @unique
+  version           Int               @default(1)
+  status            String            @default("active") // active, deprecated
+  createdAt         DateTime          @default(now())
+  
+  canonical         CanonicalAddress  @relation(fields: [canonicalId], references: [id], onDelete: Cascade)
+  
+  @@index([variant])
+  @@index([canonicalId])
+  @@map("address_variants")
+}
+
+model Deposit {
+  id                String            @id @default(uuid())
+  idempotencyHash   String            @unique
+  txHash            String
+  canonicalId       String
+  userId            Int
+  amountNano        String            // Use String for BigInt
+  status            String            @default("pending") // pending, confirmed, failed
+  confirmationDepth Int               @default(0)
+  reorgSafe         Boolean           @default(false)
+  metadata          String?           // JSON metadata
+  createdAt         DateTime          @default(now())
+  confirmedAt       DateTime?
+  
+  canonical         CanonicalAddress  @relation(fields: [canonicalId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([txHash])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SystemStatus {
+  id                Int       @id @default(autoincrement())
+  lastBlockCheck    DateTime?
+  lastLogicalTime   Int?
+  totalDeposits     Float     @default(0)
+  totalUsers        Int       @default(0)
+  isMonitoring      Boolean   @default(true)
+  updatedAt         DateTime  @updatedAt
+}
+
+model Withdrawal {
+  id                String    @id // Using custom ID generation
+  userId            Int
+  destinationAddress String
+  amountNano        String    // Use String for BigInt
+  txHash            String?
+  status            String    @default("pending") // pending, processing, completed, failed, cancelled, admin_review, rejected
+  message           String?
+  metadata          String?   // JSON metadata
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+  failedAt          DateTime?
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([txHash])
+}
+
+model Purchase {
+  id                Int       @id @default(autoincrement())
+  channelId         Int
+  buyerId           Int
+  sellerId          Int
+  price             Float
+  status            String    @default("pending") // pending, held, verified, completed, failed, refunded, cancelled
+  heldAmount        Float     // Amount held in escrow
+  verificationToken String    @unique
+  verificationDeadline DateTime // Deadline for buyer to confirm ownership
+  ownershipVerified Boolean   @default(false)
+  giftsVerified     Boolean   @default(false)
+  verifiedAt        DateTime?
+  refundedAt        DateTime?
+  metadata          String?   // JSON metadata
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  channel           Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  buyer             User      @relation("PurchaseBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller            User      @relation("PurchaseSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([channelId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model UserWarning {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  reason            String    // "fraud", "ownership_mismatch", "gifts_mismatch", "failed_verification"
+  severity          String    @default("warning") // warning, critical
+  description       String
+  relatedPurchaseId Int?
+  count             Int       @default(1) // Warning count
+  isBanned          Boolean   @default(false)
+  bannedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([isBanned])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id                Int       @id @default(autoincrement())
+  timestamp         DateTime  @default(now())
+  eventType         String    // Event type (WITHDRAWAL_REQUESTED, etc.)
+  userId            Int?
+  telegramId        String?
+  action            String    // Description of the action
+  amount            String?   // Amount as string (for bigint compatibility)
+  destinationAddress String?
+  sourceAddress     String?
+  transactionId     String?
+  channelId         Int?
+  ipAddress         String?
+  userAgent         String?
+  metadata          String    @default("{}") // JSON string
+  hash              String    // SHA256 hash for integrity
+  previousHash      String    // Previous log hash for chain
+  createdAt         DateTime  @default(now())
+  
+  @@index([timestamp])
+  @@index([userId])
+  @@index([eventType])
+  @@index([hash])
+  @@map("audit_logs")
+}
