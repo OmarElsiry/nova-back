@@ -30,6 +30,7 @@
     "@opentelemetry/api": "^1.9.0",
     "@orbs-network/ton-access": "^2.3.3",
     "@prisma/client": "^5.22.0",
+    "@telegram-apps/init-data-node": "^2.0.10",
     "@ton/core": "^0.62.0",
     "@ton/crypto": "^3.3.0",
     "@ton/ton": "^16.0.0",
