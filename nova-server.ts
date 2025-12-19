@@ -12,8 +12,6 @@ import { createLogger } from './src/infrastructure/logging/logger';
 import { detailedLogger } from './src/api/middleware/logging.middleware';
 import { createEnhancedRateLimit } from './src/api/middleware/enhanced-rate-limit.middleware';
 import { secureHeaders } from 'hono/secure-headers';
-import { serveStatic } from '@hono/node-server/serve-static';
-import { readFileSync } from 'fs';
 import { ENV, getSafeEnvForLogging } from './src/config/env';
 
 // Import routes
@@ -103,7 +101,7 @@ app.use('*', cors({
   },
   credentials: true,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Telegram-Init-Data', 'X-Telegram-InitData', 'x-telegram-initdata'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-Telegram-Id', 'x-telegram-id', 'X-Telegram-Init-Data', 'X-Telegram-InitData', 'x-telegram-initdata'],
   exposeHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-Total-Count'],
   maxAge: 86400
 }));
@@ -217,19 +215,18 @@ app.route('/api/admin', adminRoutes);
 app.onError(errorHandler);
 
 // Root
-// Static files (Frontend)
-app.use('/*', serveStatic({ root: './public' }));
-
-// Fallback for SPA
-app.get('*', (c) => {
-  if (c.req.path.startsWith('/api')) {
-    return c.json({ error: 'Not Found' }, 404);
-  }
-  try {
-    return c.html(readFileSync('./public/index.html', 'utf-8'));
-  } catch (e) {
-    return c.json({ error: 'Frontend not found' }, 404);
-  }
+app.get('/', (c) => {
+  return c.json({
+    name: 'Nova API',
+    version: '1.0.0',
+    status: 'operational',
+    port: PORT,
+    endpoints: {
+      health: '/system/health',
+      docs: '/system/info',
+      login: '/auth/login'
+    }
+  });
 });
 
 // Start server with proper logging

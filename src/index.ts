@@ -14,57 +14,15 @@ const prisma = new PrismaClient();
 const services = new ServiceFactory(prisma);
 
 // Middleware
-app.use(logger());
-app.use(async (c, next) => {
-  const method = c.req.method;
-  const url = new URL(c.req.url);
-  const headers = Object.fromEntries(c.req.raw.headers.entries());
-  const start = Date.now();
-
-  let requestBody = '';
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    try {
-      requestBody = await c.req.text();
-      c.req.raw = new Request(c.req.raw.url, {
-        method: c.req.raw.method,
-        headers: c.req.raw.headers,
-        body: requestBody
-      });
-    } catch (e) {
-      // Body already consumed or not available
-    }
-  }
-
-  const summary = {
-    path: url.pathname,
-    origin: headers.origin || headers.host || 'n/a',
-    contentType: headers['content-type'],
-    contentLength: headers['content-length']
-  };
-
-  console.log(`\n➡️  ${method} ${summary.path}`);
-  console.log(`   Origin: ${summary.origin}`);
-  if (summary.contentType || summary.contentLength) {
-    console.log(
-      `   Payload: ${summary.contentType || 'n/a'}${summary.contentLength ? `, ${summary.contentLength} bytes` : ''}`
-    );
-  }
-  if (requestBody) {
-    console.log(`   Body: ${requestBody}`);
-  }
-
-  await next();
-
-  const status = c.res.status;
-  const duration = Date.now() - start;
-  console.log(`⬅️  ${status} ${method} ${summary.path} (${duration}ms)`);
-  console.log('---');
-});
 app.use(cors({
   origin: env.corsOrigins,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Id', 'x-telegram-id', 'X-Telegram-Init-Data', 'x-telegram-init-data', 'X-Telegram-InitData', 'x-telegram-initdata']
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Telegram-Id', 'x-telegram-id', 'X-Telegram-Init-Data', 'x-telegram-init-data', 'X-Telegram-InitData', 'x-telegram-initdata'],
+  exposeHeaders: ['Content-Length', 'X-Kuma-Revision'],
+  maxAge: 600,
+  credentials: true,
 }));
+app.use(logger());
 
 // Register all API routes
 registerAPIRoutes(app, services);

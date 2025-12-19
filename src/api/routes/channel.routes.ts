@@ -342,10 +342,28 @@ app.delete('/delete/:id', async (c) => {
       }, 403);
     }
 
+    // Check if channel is listed
+    if (channel.status === 'listed') {
+      return c.json({
+        success: false,
+        error: 'Cannot disconnect a listed channel. Please unlist it first.'
+      }, 400);
+    }
+
     // Authorization check
     const user = c.get('telegramUser') as AuthenticatedUser;
     if (!user) {
       return c.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+
+    // verify ownership via Telegram Bot API
+    if (user.id) {
+      try {
+        const check = await telegramService.verifyChannelOwnership(channel.username, typeof user.id === 'string' ? parseInt(user.id) : user.id);
+        console.log(`[Channel Delete] Ownership verify for @${channel.username} by ${user.id}:`, check);
+      } catch (e) {
+        console.warn('[Channel Delete] Failed to verify telegram ownership', e);
+      }
     }
 
     if (channel.userId !== user.dbId) {
@@ -367,7 +385,7 @@ app.delete('/delete/:id', async (c) => {
 
     return c.json({
       success: true,
-      message: 'Channel deleted successfully',
+      message: 'Channel disconnected successfully',
       deletedChannel: {
         id: channel.id,
         username: channel.username
