@@ -1,6 +1,6 @@
 /**
- * Enhanced Rate Limit Middleware with Redis support
- * Production-ready rate limiting with distributed support
+ * Enhanced Rate Limit Middleware (In-Memory)
+ * Production-ready rate limiting with local memory storage
  */
 
 import type { Context, Next } from 'hono';
@@ -61,7 +61,7 @@ class MemoryStore {
   increment(key: string, windowMs: number): RateLimitStore {
     const now = Date.now();
     let data = this.get(key);
-    
+
     if (!data || now > data.resetTime) {
       data = {
         count: 1,
@@ -70,7 +70,7 @@ class MemoryStore {
     } else {
       data.count++;
     }
-    
+
     this.set(key, data);
     return data;
   }
@@ -143,7 +143,7 @@ function generateFingerprint(c: Context): string {
     c.req.header('accept-language') || 'unknown',
     c.req.header('accept-encoding') || 'unknown',
   ];
-  
+
   return createHash('sha256')
     .update(parts.join('|'))
     .digest('hex')
@@ -171,13 +171,13 @@ export function createEnhancedRateLimit(config: RateLimitConfig) {
     }
 
     const key = keyGenerator(c);
-    
+
     // Check if blocked
     if (globalStore.isBlocked(key)) {
       if (handler) {
         return handler(c);
       }
-      
+
       return c.json({
         success: false,
         error: {
