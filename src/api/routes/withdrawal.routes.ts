@@ -99,14 +99,21 @@ app.post('/request', async (c) => {
 
       // 2. Check pending withdrawals limit
       if (user.withdrawals.length >= WITHDRAWAL_LIMITS.MAX_PENDING_WITHDRAWALS) {
-        await auditLogger.logSecurityEvent(
-          AuditEventType.SUSPICIOUS_ACTIVITY,
-          `Too many pending withdrawals: ${user.withdrawals.length}`,
-          userId,
-          ipAddress
-        );
         throw new HTTPException(429, {
           message: `Maximum ${WITHDRAWAL_LIMITS.MAX_PENDING_WITHDRAWALS} pending withdrawals allowed`
+        });
+      }
+
+      // 2b. Check cooldown (FIX: Prevent rapid withdrawal spam)
+      const lastWithdrawal = await tx.withdrawal.findFirst({
+        where: { userId: userId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (lastWithdrawal && (Date.now() - lastWithdrawal.createdAt.getTime() < WITHDRAWAL_LIMITS.COOLDOWN_PERIOD_MS)) {
+        const remainingMs = WITHDRAWAL_LIMITS.COOLDOWN_PERIOD_MS - (Date.now() - lastWithdrawal.createdAt.getTime());
+        throw new HTTPException(429, {
+          message: `Cooldown active. Please wait ${Math.ceil(remainingMs / 1000)} seconds.`
         });
       }
 
@@ -451,10 +458,15 @@ app.get('/limits', async (c) => {
         amountNano: true
       }
     });
-
     // FIX: Use secure configuration instead of direct env access
     const dailyUsed = dailyWithdrawals.reduce((sum: bigint, w: any) => sum + BigInt(w.amountNano), 0n);
     const dailyRemaining = WITHDRAWAL_LIMITS.DAILY_WITHDRAWAL_LIMIT - dailyUsed;
+
+    const lastWithdrawal = await prisma.withdrawal.findFirst({
+      where: { userId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true }
+    });
 
     return c.json({
       success: true,
@@ -462,11 +474,13 @@ app.get('/limits', async (c) => {
         limits: {
           daily: WITHDRAWAL_LIMITS.DAILY_WITHDRAWAL_LIMIT.toString(),
           perTransaction: WITHDRAWAL_LIMITS.PER_TX_WITHDRAWAL_LIMIT.toString(),
-          minimum: WITHDRAWAL_LIMITS.MIN_WITHDRAWAL.toString()
+          minimum: WITHDRAWAL_LIMITS.MIN_WITHDRAWAL.toString(),
+          cooldownMs: WITHDRAWAL_LIMITS.COOLDOWN_PERIOD_MS
         },
         usage: {
           dailyUsed: dailyUsed.toString(),
-          dailyRemaining: dailyRemaining > 0 ? dailyRemaining.toString() : '0'
+          dailyRemaining: dailyRemaining > 0 ? dailyRemaining.toString() : '0',
+          lastWithdrawalAt: lastWithdrawal?.createdAt.toISOString() || null
         },
         limitsInTON: {
           daily: nanoToTON(WITHDRAWAL_LIMITS.DAILY_WITHDRAWAL_LIMIT),
